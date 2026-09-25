@@ -1,0 +1,42 @@
+{
+  "name": "latchkey-viewer",
+  "productName": "latchkey viewer",
+  "version": "0.1.0",
+  "description": "Watch an latchkey session: latest frame, the agent's pointer, and every action as it happens.",
+  "author": "latchkey",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac",
+    "postinstall": "node -e \"console.log('latchkey viewer: run npm start, or npm run build for a .app')\""
+  },
+  "devDependencies": {
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "dev.latchkey.viewer",
+    "productName": "latchkey viewer",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dir",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools",
+      "identity": null,
+      "darkModeSupport": true
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}

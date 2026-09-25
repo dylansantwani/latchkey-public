@@ -1,0 +1,591 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>latchkey</title>
+<style>
+ :root { color-scheme: dark;
+   --bg:#0f1114; --panel:#1c1f24; --ink:#e8e9ee; --muted:#8b8f9a; --line:rgba(255,255,255,.1);
+   --ok:#34d399; --busy:#fbbf24; --bad:#ef4444; --link:#86b4ff; }
+ body { margin:0; height:100vh; display:flex; flex-direction:column;
+        background:var(--bg); color:var(--ink);
+        font:12px/1.45 -apple-system,system-ui,sans-serif; overflow:hidden; }
+ header { display:flex; align-items:center; gap:8px; padding:6px 8px; background:var(--panel); }
+ strong { font-size:12px; }
+ #status { color:var(--muted); white-space:nowrap; display:flex; align-items:center; gap:5px; }
+ #status .pip { width:7px; height:7px; border-radius:50%; background:var(--muted); }
+ #status.live .pip { background:var(--ok); }
+ #status.reconnecting .pip { background:var(--bad); }
+ #tabs { display:flex; gap:4px; flex:1 1 auto; overflow-x:auto; scrollbar-width:none; }
+ .tab { display:flex; align-items:center; gap:6px; flex:0 0 auto; max-width:230px;
+        padding:3px 8px; background:rgba(255,255,255,.05); border:1px solid transparent;
+        border-radius:7px; color:var(--muted); font:inherit; cursor:pointer; text-align:left; }
+ .tab.active { background:rgba(255,255,255,.13); color:var(--ink); border-color:var(--line); }
+ .tab .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); flex:0 0 auto; }
+ .tab .dot.busy { background:var(--busy); animation:pulse 1s ease-in-out infinite; }
+ .tab .dot.idle { background:var(--ok); }
+ .tab .dot.error { background:var(--bad); }
+ @keyframes pulse { 50% { opacity:.35; } }
+ .tab .text { display:flex; flex-direction:column; min-width:0; line-height:1.2; }
+ .tab .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+ .tab .label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; opacity:.75; }
+ .tab .q { font-size:10px; padding:0 5px; border-radius:8px; background:rgba(251,191,36,.18); color:var(--busy); }
+ .tab .x { border:none; background:none; color:inherit; font:inherit; cursor:pointer; padding:0 2px; }
+ .tab .x:hover { color:var(--bad); }
+ .tab.arming { border-color:rgba(239,68,68,.7); color:var(--bad); }
+ .tab.closing { opacity:.5; }
+ .tab kbd { font:10px/1 inherit; color:var(--muted); opacity:.6; }
+ #log-toggle { border:1px solid var(--line); background:none; color:var(--muted); font:inherit;
+               border-radius:6px; padding:2px 7px; cursor:pointer; white-space:nowrap; }
+ #log-toggle.on, #log-toggle:hover { color:var(--ink); background:rgba(255,255,255,.08); }
+ #now { display:flex; align-items:center; gap:8px; padding:4px 8px; background:#15181c;
+        border-top:1px solid var(--line); border-bottom:1px solid var(--line); min-height:18px;
+        white-space:nowrap; overflow:hidden; }
+ #now[hidden] { display:none; }
+ #now .kind { padding:1px 6px; border-radius:5px; background:rgba(255,255,255,.08); color:var(--ink); }
+ #now .verdict { padding:1px 6px; border-radius:5px; font-size:11px; }
+ #now .verdict.logged-in { background:rgba(52,211,153,.15); color:var(--ok); }
+ #now .verdict.logged-out, #now .verdict.unclear { background:rgba(255,255,255,.08); color:var(--muted); }
+ #now .verdict.blocked, #now .verdict.challenged { background:rgba(239,68,68,.18); color:var(--bad); }
+ #now a { color:var(--link); text-decoration:none; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+ #now a:hover { text-decoration:underline; }
+ #now .title { color:var(--muted); overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1 1 auto; }
+ #now .ago { color:var(--muted); margin-left:auto; }
+ #now .wall { color:var(--bad); }
+ #main { position:relative; flex:1 1 auto; display:flex; min-height:0; }
+ #stage { position:relative; flex:1 1 auto; background:rgba(0,0,0,.72); overflow:hidden; }
+ #frame { width:100%; height:100%; object-fit:contain; display:block; }
+ #cursor { position:absolute; left:0; top:0; width:24px; height:24px; margin:-12px 0 0 -12px;
+           border-radius:50%; border:2px solid #ef4444;
+           background-image: linear-gradient(to right, transparent 47%, rgba(239,68,68,.8) 47%,
+                             rgba(239,68,68,.8) 53%, transparent 53%),
+                             linear-gradient(to bottom, transparent 47%, rgba(239,68,68,.8) 47%,
+                             rgba(239,68,68,.8) 53%, transparent 53%),
+                             radial-gradient(circle, rgba(239,68,68,.95) 0 3px, rgba(239,68,68,.18) 3px);
+           box-shadow:0 0 0 2px rgba(255,255,255,.9), 0 2px 10px rgba(0,0,0,.55);
+           transition:transform .18s ease-out; pointer-events:none; }
+ #cursor[hidden] { display:none; }
+ #stale { position:absolute; right:8px; top:8px; padding:2px 7px; border-radius:6px;
+          background:rgba(0,0,0,.6); color:var(--muted); font-size:11px; }
+ #stale[hidden] { display:none; }
+ #log { flex:0 0 300px; max-width:45%; border-left:1px solid var(--line); background:#121417;
+        overflow-y:auto; font-size:11px; }
+ #log[hidden] { display:none; }
+ .ev { display:grid; grid-template-columns:52px 60px 1fr; gap:6px; padding:4px 8px;
+       border-bottom:1px solid rgba(255,255,255,.05); align-items:baseline; }
+ .ev .t { color:var(--muted); font-variant-numeric:tabular-nums; }
+ .ev .k { color:var(--ink); }
+ .ev .d { color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+ .ev.refused .k { color:var(--bad); }
+ .ev.new { animation:flash .8s ease-out; }
+ @keyframes flash { from { background:rgba(255,255,255,.12); } }
+ #log-empty { padding:10px 8px; color:var(--muted); }
+ #empty { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center;
+          gap:7px; padding:0 20px; background:var(--bg); }
+ #empty[hidden] { display:none; }
+ #empty-elsewhere { max-width:46rem; line-height:1.5; }
+ #empty-elsewhere a { color:var(--link); }
+ #banners { position:absolute; left:8px; right:8px; bottom:8px; display:flex;
+            flex-direction:column; gap:4px; }
+ .banner { padding:6px 9px; background:rgba(30,22,22,.96);
+           border:1px solid rgba(239,68,68,.45); border-radius:8px; }
+ .banner.info { background:rgba(22,26,30,.96); border-color:var(--line); }
+ .banner b { color:#fff; }
+ .muted { color:var(--muted); }
+ code { padding:1px 5px; background:rgba(0,0,0,.45); border:1px solid var(--line);
+        border-radius:5px; user-select:text; }
+</style></head><body>
+<header>
+  <strong>latchkey</strong>
+  <span id="status"><span class="pip"></span><span id="status-text">connecting</span></span>
+  <div id="tabs"></div>
+  <button id="log-toggle" type="button" title="Show what the agent has done in this session (L)">activity</button>
+</header>
+<div id="now" hidden></div>
+<div id="main">
+  <div id="stage">
+    <img id="frame" alt="">
+    <div id="cursor" hidden></div>
+    <div id="stale" hidden></div>
+    <div id="empty">
+      <div><b id="empty-title">no sessions yet</b></div>
+      <div class="muted" id="empty-text">An agent opens one with <code>latchkey_session_open</code>; it appears here the moment it does.</div>
+      <div class="muted" id="empty-meta"></div>
+      <div class="muted" id="empty-elsewhere"></div>
+    </div>
+    <div id="banners"></div>
+  </div>
+  <div id="log" hidden><div id="log-empty">Nothing yet. Every verb the agent runs in this session lands here.</div></div>
+</div>
+<script>
+// Deliberately dependency-free: this page and the Electron app speak the same endpoints,
+// so a bug in one is a bug in the other.
+const $ = (id) => document.getElementById(id);
+let sessions = [], current = null, frameCounters = {}, arming = null, armTimer = null;
+// Sequence numbers begin at one in each server process.  A long-lived EventSource can
+// reconnect after that process restarts, so its old activity must not dedupe the new run.
+let runId = null;
+// What the stage is showing, as `session:counter`. The session list arrives once a
+// second, and without this the page would fetch and decode a frame that has not
+// changed, once a second, for as long as it is open. `inflight` is the same key
+// while that frame's fetch is still out.
+let shown = null, inflight = null, tabsSignature = null, shownAt = 0;
+// The newest pointer we have seen, per session: it is re-placed every time a frame lands,
+// so a pointer that arrived before its picture did is not lost.
+const cursors = {};
+// What the agent has done, per session: the verbs it published, newest last. The server
+// replays its recent history as this page connects, so the list is full from the first
+// second, and every later event is appended as it happens. Nothing here is asked of the
+// page being driven - it is the agent's own account of itself.
+const history = {};
+const HISTORY_MAX = 120;
+let logOpen = false;
+try { logOpen = localStorage.getItem('latchkey.log') === '1'; } catch (e) { /* fine */ }
+
+function banner(text, kind, sticky) {
+  const el = document.createElement('div');
+  el.className = 'banner' + (kind === 'info' ? ' info' : '');
+  el.innerHTML = text;
+  $('banners').appendChild(el);
+  while ($('banners').children.length > 4) $('banners').firstChild.remove();
+  if (!sticky) setTimeout(() => el.remove(), kind === 'info' ? 5000 : 12000);
+}
+
+function runningNames() { return sessions.map((s) => s.name); }
+
+function ago(ts) {
+  const s = Math.max(0, (Date.now() / 1000) - ts);
+  if (s < 1.5) return 'now';
+  if (s < 60) return Math.round(s) + 's ago';
+  if (s < 3600) return Math.round(s / 60) + 'm ago';
+  return Math.round(s / 3600) + 'h ago';
+}
+
+function clock(ts) {
+  return new Date(ts * 1000).toTimeString().slice(0, 8);
+}
+
+// One line for a verb: what it acted on, or where it went. Credentials never reach the
+// event in the first place (the agent reports "(hidden)"), so nothing is masked here.
+function describe(event) {
+  const d = event.detail || {};
+  const bits = [];
+  if (d.refused) bits.push('refused (read-only session)');
+  if (d.action) bits.push(d.action);
+  if (d.selector) bits.push(d.selector);
+  if (d.key) bits.push('key ' + d.key);
+  if (d.value !== undefined && d.value !== null && d.value !== '') bits.push(JSON.stringify(String(d.value)).slice(0, 60));
+  if (d.pixels) bits.push(d.pixels + 'px');
+  if (d.js) bits.push(String(d.js).replace(/\s+/g, ' ').slice(0, 70));
+  if (d.target !== undefined && event.kind === 'tab') bits.push('tab ' + d.target);
+  if (d.wall) bits.push('wall: ' + d.wall);
+  if (!bits.length && d.url) bits.push(d.url);
+  else if (d.url && (event.kind === 'goto' || event.kind === 'tab')) bits.push(d.url);
+  return bits.join(' · ');
+}
+
+function remember(event) {
+  const list = history[event.session] || (history[event.session] = []);
+  if (list.some((e) => e.run === event.run && e.seq === event.seq)) return false;
+  list.push(event);
+  if (list.length > HISTORY_MAX) list.splice(0, list.length - HISTORY_MAX);
+  return true;
+}
+
+function resetForRun(nextRun) {
+  if (!nextRun || nextRun === runId) return;
+  runId = nextRun;
+  for (const key of Object.keys(history)) delete history[key];
+  for (const key of Object.keys(cursors)) delete cursors[key];
+  frameCounters = {};
+  shown = inflight = null;
+  shownAt = 0;
+}
+
+// The newest event that said where the page is - a goto, a click, a tab switch all carry
+// the page's url, title and verdict - so the "now" line can say what the agent is looking
+// at without asking the page anything.
+function latestPage(name) {
+  const list = history[name] || [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i].detail && list[i].detail.url) return list[i];
+  }
+  return null;
+}
+
+function renderNow() {
+  const box = $('now');
+  const list = current ? (history[current] || []) : [];
+  const last = list[list.length - 1];
+  if (!current || !last) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = '';
+  const kind = document.createElement('span');
+  kind.className = 'kind';
+  kind.textContent = last.kind;
+  kind.title = describe(last);
+  box.appendChild(kind);
+  const where = latestPage(current);
+  if (where) {
+    const d = where.detail;
+    if (d.verdict) {
+      const v = document.createElement('span');
+      v.className = 'verdict ' + d.verdict;
+      v.textContent = d.verdict;
+      box.appendChild(v);
+    }
+    if (d.wall) {
+      const w = document.createElement('span');
+      w.className = 'wall';
+      w.textContent = d.wall;
+      box.appendChild(w);
+    }
+    const a = document.createElement('a');
+    a.href = /^https?:\/\//.test(d.url) ? d.url : 'https://' + d.url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = d.url;
+    a.title = 'Open this page in your own browser';
+    box.appendChild(a);
+    if (d.title) {
+      const t = document.createElement('span');
+      t.className = 'title';
+      t.textContent = d.title;
+      box.appendChild(t);
+    }
+  } else {
+    const t = document.createElement('span');
+    t.className = 'title';
+    t.textContent = describe(last);
+    box.appendChild(t);
+  }
+  const when = document.createElement('span');
+  when.className = 'ago';
+  when.textContent = ago(last.ts);
+  box.appendChild(when);
+}
+
+function renderLog(flashLast) {
+  const box = $('log');
+  box.hidden = !logOpen;
+  $('log-toggle').classList.toggle('on', logOpen);
+  if (!logOpen) return;
+  const list = current ? (history[current] || []) : [];
+  box.innerHTML = '';
+  if (!list.length) {
+    const e = document.createElement('div');
+    e.id = 'log-empty';
+    e.textContent = current ? 'Nothing yet. Every verb the agent runs in this session lands here.'
+                            : 'Pick a session to see what its agent has done.';
+    box.appendChild(e);
+    return;
+  }
+  list.forEach((event, index) => {
+    const row = document.createElement('div');
+    row.className = 'ev' + (event.detail && event.detail.refused ? ' refused' : '')
+      + (flashLast && index === list.length - 1 ? ' new' : '');
+    const t = document.createElement('span'); t.className = 't'; t.textContent = clock(event.ts); t.title = ago(event.ts);
+    const k = document.createElement('span'); k.className = 'k'; k.textContent = event.kind;
+    const d = document.createElement('span'); d.className = 'd'; d.textContent = describe(event); d.title = d.textContent;
+    row.append(t, k, d);
+    box.appendChild(row);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+// Moving to another session always owes the stage a frame: the picture on it is the
+// other session's until a new one lands. The pointer belongs to a session too, so it is
+// re-placed (or hidden) on the way in.
+function select(name) {
+  if (name !== current) { current = name; shown = null; }
+  render();
+  loadFrame();
+  syncPointer();
+  renderNow();
+  renderLog(false);
+}
+
+// Where the pointer is, in the page's own pixels. The frame is a picture of the viewport at
+// the screencast's own width (1100 by default) while the page is 1280 of them, so scaling by
+// the picture's pixels - which is what this did - put the pointer between a fifth and a
+// quarter of the way off: 73 px out at the middle of the page, 146 px at the far edge.
+// `vw`/`vh` come with the event, from the side that knows.
+function placeCursor(data) {
+  const img = $('frame');
+  if (!img.naturalWidth) return;
+  const box = img.getBoundingClientRect();
+  const vw = data.vw || img.naturalWidth;
+  const vh = data.vh || Math.round(vw * img.naturalHeight / img.naturalWidth);
+  // ...and the picture is letterboxed into the stage, so it sits centred in what is left.
+  const scale = Math.min(box.width / vw, box.height / vh);
+  const left = (box.width - vw * scale) / 2;
+  const top = (box.height - vh * scale) / 2;
+  const cursor = $('cursor');
+  cursor.hidden = false;
+  cursor.style.transform = `translate(${left + data.x * scale}px, ${top + data.y * scale}px)`;
+  cursor.style.opacity = data.click ? 1 : .8;
+}
+
+function syncPointer() {
+  const data = current ? cursors[current] : null;
+  if (!data) { $('cursor').hidden = true; return; }
+  placeCursor(data);
+}
+
+// "No sessions here" is not the same as "no sessions". A viewer serves the sessions of
+// its own process, so this page can be open on a server that has none while the agent
+// works in another one - a second MCP connection that could not have the port, say. That
+// looks exactly like latchkey being broken, so when this viewer is empty, ask it where
+// the sessions actually are and put the link in front of the human.
+let elsewhereAt = 0;
+
+async function showElsewhere() {
+  const box = $('empty-elsewhere');
+  if (sessions.length || Date.now() - elsewhereAt < 5000) return;
+  elsewhereAt = Date.now();
+  let others = [];
+  try {
+    const body = await (await fetch('/elsewhere')).json();
+    others = (body.elsewhere || []).filter((viewer) => (viewer.sessions || []).length);
+  } catch (error) {
+    return;                        // the empty state is a nicety; never a failure of its own
+  }
+  box.innerHTML = '';
+  if (!others.length) return;
+  const total = others.reduce((count, viewer) => count + viewer.sessions.length, 0);
+  box.append(`${total} session${total === 1 ? '' : 's'} ${total === 1 ? 'is' : 'are'}`
+    + ' on another latchkey viewer: ');
+  others.forEach((viewer, index) => {
+    if (index) box.append(', ');
+    const link = document.createElement('a');
+    link.href = viewer.url;
+    link.textContent = `${viewer.url} (${viewer.sessions.join(', ')})`;
+    box.appendChild(link);
+  });
+}
+
+function stateOf(session) {
+  if (session.error) return 'error';
+  if (session.busy || session.queued) return 'busy';
+  return 'idle';
+}
+
+function render() {
+  $('empty').hidden = sessions.length > 0;
+  $('empty-meta').textContent = sessions.length ? '' : 'Watching ' + location.origin + ' — no sessions there yet.';
+  if (!sessions.length) showElsewhere();
+  // This runs on every session list, which is once a second. It only owes the DOM a
+  // rebuild when the strip itself changed: tearing down and rebuilding every tab and
+  // its listeners while the agent works is felt as lag in the window a person is
+  // watching.
+  const signature = sessions.map((s) => s.name + ':' + stateOf(s) + ':' + (s.queued || 0)
+    + ':' + (s.label || '') + (s.name === current ? '>' : '')
+    + (s.name === arming ? '?' : '') + (s.closing ? 'x' : '')).join('|');
+  if (signature === tabsSignature) return;
+  tabsSignature = signature;
+  const box = $('tabs');
+  box.innerHTML = '';
+  sessions.forEach((session, index) => {
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'tab'
+      + (session.name === current ? ' active' : '')
+      + (arming === session.name ? ' arming' : '')
+      + (session.closing ? ' closing' : '');
+    const state = stateOf(session);
+    const dot = document.createElement('span');
+    dot.className = 'dot ' + state;
+    dot.title = state === 'busy' ? 'working' : state === 'error' ? String(session.error) : 'idle';
+    const text = document.createElement('span');
+    text.className = 'text';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = arming === session.name ? `close ${session.name}?` : session.name;
+    text.appendChild(name);
+    if (session.label && session.label !== session.name && arming !== session.name) {
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = session.label;
+      label.title = session.label;
+      text.appendChild(label);
+    }
+    tab.title = `${session.name}${session.label && session.label !== session.name ? ' — ' + session.label : ''}`
+      + `\n${state}${session.queued ? `, ${session.queued} queued` : ''}`
+      + `${session.mode ? `, mode ${session.mode}` : ''}, open ${Math.round(session.age_s || 0)}s`
+      + (index < 9 ? `\npress ${index + 1} to switch` : '');
+    tab.appendChild(dot);
+    tab.appendChild(text);
+    if (session.queued) {
+      const q = document.createElement('span');
+      q.className = 'q';
+      q.textContent = '+' + session.queued;
+      q.title = `${session.queued} call${session.queued === 1 ? '' : 's'} waiting`;
+      tab.appendChild(q);
+    }
+    if (index < 9) {
+      const key = document.createElement('kbd');
+      key.textContent = String(index + 1);
+      tab.appendChild(key);
+    }
+    const x = document.createElement('span');
+    x.className = 'x';
+    x.textContent = '✕';
+    x.title = `Stop and delete session ${session.name}`;
+    x.addEventListener('click', (event) => { event.stopPropagation(); askClose(session.name); });
+    tab.appendChild(x);
+    tab.addEventListener('click', () => select(session.name));
+    box.appendChild(tab);
+  });
+}
+
+// Closing is the one thing this page can do that changes the agent's world, so it takes
+// two clicks: the first arms the tab, the second goes through.
+function askClose(name) {
+  if (arming === name) { arming = null; clearTimeout(armTimer); closeSession(name); return; }
+  arming = name;
+  clearTimeout(armTimer);
+  armTimer = setTimeout(() => { arming = null; render(); }, 4000);
+  render();
+}
+
+async function closeSession(name) {
+  const record = sessions.find((s) => s.name === name);
+  if (record) record.closing = true;
+  render();
+  try {
+    const response = await fetch(`/session/${encodeURIComponent(name)}/close`, { method: 'POST' });
+    const body = await response.json().catch(() => ({}));
+    if (response.ok && body.ok) {
+      banner(`Closed <b>${name}</b>. Still running: <code>${(body.running || []).join(', ') || 'none'}</code>`, 'info');
+    } else {
+      banner(`Could not close <b>${name}</b>: ${body.error || response.status}. `
+        + `Running: <code>${(body.running || runningNames()).join(', ') || 'none'}</code>`);
+    }
+  } catch (err) {
+    banner(`Could not close <b>${name}</b>: ${err.message}. Is the viewer server still up?`);
+  } finally {
+    if (record) record.closing = false;
+    render();
+  }
+}
+
+async function loadFrame() {
+  if (!current) { $('frame').removeAttribute('src'); shown = null; return; }
+  const counter = frameCounters[current] || 0;
+  const key = `${current}:${counter}`;
+  // Nothing new to show. The frame endpoint answers with the session's newest frame
+  // whatever `n` says, so asking again while the counter stands still only buys the
+  // same bytes and the same decode - sixty times a minute, for a page that is just
+  // sitting there. A fetch that fails leaves `shown` where it was, so the next tick
+  // retries it, and so does a session that has not painted anything yet.
+  if (key === shown || key === inflight) return;
+  inflight = key;
+  try {
+    const url = `/frame/${encodeURIComponent(current)}?n=${counter}`;
+    const response = await fetch(url, { cache: 'no-store' }).catch(() => null);
+    if (!response) return;
+    if (response.status === 404) {
+      // A session that is not there is worth explaining in full: which one, what is
+      // left, and the likeliest reason. "404" on its own sends people to the wrong
+      // process. Said once, not once a second, which is what `shown` is for.
+      const body = await response.json().catch(() => ({}));
+      const running = (body.running || runningNames());
+      banner(`Session <b>${current}</b> does not exist on this viewer `
+        + `(${body.error || '404'}). `
+        + (running.length ? `Running: <code>${running.join(', ')}</code>` : 'No sessions are running.')
+        + ' It may have been closed, or the agent is driving another server.');
+      sessions = sessions.filter((s) => s.name !== current);
+      current = sessions[0] ? sessions[0].name : null;
+      shown = null;
+      render();
+      return;
+    }
+    if (response.status === 204) return;          // exists, nothing painted yet
+    if (!response.ok) { $('status-text').textContent = `frame error ${response.status}`; return; }
+    const blob = await response.blob();
+    const old = $('frame').src;
+    $('frame').src = URL.createObjectURL(blob);
+    if (old && old.startsWith('blob:')) URL.revokeObjectURL(old);   // a page left open all day must not grow
+    shown = key;
+    shownAt = Date.now();
+  } finally {
+    if (inflight === key) inflight = null;
+  }
+}
+
+// A picture that has not changed for a while is worth saying so about: the agent may be
+// waiting on something, or the session may be idle. The stage looks the same either way.
+function tickStale() {
+  const box = $('stale');
+  const session = sessions.find((s) => s.name === current);
+  if (!current || !shownAt || !session) { box.hidden = true; return; }
+  const seconds = Math.round((Date.now() - shownAt) / 1000);
+  if (seconds < 8) { box.hidden = true; return; }
+  box.hidden = false;
+  box.textContent = (session.busy ? 'working, ' : 'idle, ') + `last frame ${seconds}s ago`;
+}
+
+function setStatus(text, cls) {
+  $('status-text').textContent = text;
+  $('status').className = cls || '';
+}
+
+function connect() {
+  const stream = new EventSource('/events');
+  stream.onopen = () => { setStatus(`live · ${location.host}`, 'live'); };
+  stream.onerror = () => { setStatus('reconnecting', 'reconnecting'); };
+  stream.onmessage = (message) => {
+    const data = JSON.parse(message.data);
+    if (data.type === 'hello') { resetForRun(data.run); return; }
+    if (data.type === 'heartbeat') return;
+    if (data.type === 'sessions') {
+      sessions = data.sessions || [];
+      // The counter rides along with the list, so a frame that was painted before this
+      // page opened - which is the usual case for a page that is just sitting there -
+      // still gets shown, without the page having to poll for one.
+      for (const session of sessions) {
+        if (session.frame) {
+          frameCounters[session.name] = Math.max(frameCounters[session.name] || 0, session.frame);
+        }
+      }
+      const keep = sessions.some((s) => s.name === current);
+      select(keep ? current : (sessions[0] ? sessions[0].name : null));
+      setStatus(`live · ${location.host} · ${sessions.length} session${sessions.length === 1 ? '' : 's'}`, 'live');
+    } else if (data.type === 'frame') {
+      frameCounters[data.session] = data.counter;
+      if (data.session === current) loadFrame();
+    } else if (data.type === 'cursor') {
+      cursors[data.session] = data;              // kept per session, re-placed per frame
+      if (data.session === current) placeCursor(data);
+    } else if (data.type === 'event' && data.event) {
+      const fresh = remember(data.event);
+      if (fresh && data.event.session === current) { renderNow(); renderLog(true); }
+    }
+  };
+}
+
+$('frame').addEventListener('load', syncPointer);   // a new picture needs its pointer
+$('log-toggle').addEventListener('click', () => {
+  logOpen = !logOpen;
+  try { localStorage.setItem('latchkey.log', logOpen ? '1' : '0'); } catch (e) { /* fine */ }
+  renderLog(false);
+  syncPointer();                                    // the stage changed width under the pointer
+});
+window.addEventListener('resize', syncPointer);
+// 1-9 picks a session, [ and ] step through them, L toggles the activity panel, Escape
+// disarms a close. The panel in the menu bar is keyboard-first: the mouse is busy elsewhere.
+window.addEventListener('keydown', (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  const names = runningNames();
+  if (/^[1-9]$/.test(event.key) && names[Number(event.key) - 1]) { select(names[Number(event.key) - 1]); return; }
+  if ((event.key === '[' || event.key === ']') && names.length > 1 && current) {
+    const at = names.indexOf(current);
+    select(names[(at + (event.key === ']' ? 1 : names.length - 1)) % names.length]);
+  } else if (event.key.toLowerCase() === 'l') {
+    $('log-toggle').click();
+  } else if (event.key === 'Escape' && arming) {
+    arming = null; clearTimeout(armTimer); render();
+  }
+});
+setInterval(() => { tickStale(); if (!$('now').hidden) renderNow(); }, 1000);
+render();
+renderLog(false);
+connect();
+</script></body></html>
