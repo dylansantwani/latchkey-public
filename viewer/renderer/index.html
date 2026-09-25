@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- The panel shows strings it did not write (page URLs, selectors, a value typed
+     into a credential field) and connects to exactly one origin, so it is given no
+     other capability: no network but the loopback viewer port, no inline script. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: http://127.0.0.1:*; connect-src http://127.0.0.1:*">
+<title>latchkey viewer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="strip" data-interactive>
+    <span id="brand">latchkey</span>
+    <span id="status" class="pill">connecting</span>
+    <div id="tabs"></div>
+    <button id="thru" type="button" class="ctl"></button>
+    <button id="quit" type="button" class="ctl" title="Quit the viewer (the agent keeps running)">✕</button>
+  </header>
+
+  <main id="stage">
+    <div id="empty" class="card">
+      <h2 id="empty-title">connecting</h2>
+      <p id="empty-text">Looking for the latchkey server…</p>
+      <p id="empty-code" class="code" hidden></p>
+      <p id="empty-meta" class="muted"></p>
+      <button id="retry" type="button" class="big" data-interactive>Retry now</button>
+    </div>
+  </main>
+
+  <div id="banners"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

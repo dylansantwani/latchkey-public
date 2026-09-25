@@ -1,0 +1,315 @@
+:root {
+  --bg: rgba(16, 17, 20, 0.94);
+  --line: rgba(255, 255, 255, 0.10);
+  --fg: #e8e9ee;
+  --muted: #8b8f9a;
+  --ok: #46d07a;
+  --warn: #e8b341;
+  --bad: #ef4444;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  /* The window itself is transparent; only the strip and the cards paint anything,
+     so the page being watched stays readable around them. */
+  background: transparent;
+  color: var(--fg);
+  font: 12px/1.45 -apple-system, "SF Mono", Menlo, monospace;
+  overflow: hidden;
+  cursor: default;
+}
+
+#strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  /* The strip is the window's handle: without this a frameless window cannot be
+     moved at all. */
+  -webkit-app-region: drag;
+}
+
+#brand { color: var(--muted); font-size: 11px; letter-spacing: .04em; }
+
+.pill {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.pill.live { color: var(--ok); border-color: rgba(70, 208, 122, .5); }
+.pill.warn { color: var(--warn); border-color: rgba(232, 179, 65, .5); }
+.pill.down { color: var(--bad); border-color: rgba(239, 68, 68, .5); }
+
+#tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-app-region: no-drag;
+}
+#tabs::-webkit-scrollbar { height: 0; }
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  max-width: 130px;
+  padding: 3px 8px;
+  /* Children of a drag region are undraggable by default, which would make the tabs
+     unclickable. */
+  -webkit-app-region: no-drag;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font: inherit;
+  cursor: pointer;
+}
+.tab.active { background: rgba(255, 255, 255, 0.13); color: var(--fg); border-color: var(--line); }
+.tab .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex: 0 0 auto; }
+/* A session can end while it is being watched. The tab stays, greyed, because its
+   frame and its action list are still the most recent evidence of what happened. */
+.tab.gone .dot { background: var(--muted); }
+.tab.gone .name { text-decoration: line-through; opacity: .7; }
+
+/* Stopping a session is destructive, so the tab says so before it happens: armed on the
+   first click, gone on the second. */
+.tab .x { flex: 0 0 auto; padding: 0 3px; color: var(--muted); }
+.tab .x:hover { color: var(--bad); }
+.tab.arming { border-color: var(--bad); }
+.tab.arming .name { color: var(--bad); }
+.tab.closing { opacity: .5; }
+
+/* The verdict used to live in the action list. It is the one thing from that list worth
+   keeping on screen, so it sits next to the URL. */
+.verdict { flex: 0 0 auto; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.verdict.logged-in { color: var(--ok); }
+.verdict.logged-out { color: var(--muted); }
+.verdict.blocked { color: var(--bad); }
+.verdict.unclear { color: var(--warn); }
+
+.ctl {
+  -webkit-app-region: no-drag;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+.ctl.thru { color: var(--warn); }
+
+#stage {
+  position: relative;
+  /* Fills whatever the strip leaves, so nothing is reserved for a height the strip no
+     longer has: a hard-coded number here is what left a band of nothing under the frame. */
+  flex: 1 1 auto;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+}
+.card h2 { margin: 0 0 6px; font-size: 13px; }
+.card p { margin: 0 0 8px; color: var(--muted); }
+.code {
+  padding: 7px 9px;
+  background: rgba(0, 0, 0, .45);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--fg);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.muted { color: var(--muted); }
+.big {
+  -webkit-app-region: no-drag;
+  margin-top: 4px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  /* No gap: the meta line is part of the picture's footprint, and the window is sized to
+     exactly that footprint. */
+  gap: 0;
+}
+.pane[hidden] { display: none; }
+
+.pane .frame-view {
+  position: relative;
+  /* The frame sets the height, not the window: with flex: 1 the box stretched to whatever
+     room was left over, and `contain` letterboxed the picture inside it. */
+  flex: 0 0 auto;
+  min-height: 120px;
+  background: rgba(0, 0, 0, .72);
+  overflow: hidden;
+}
+.pane .frame {
+  width: 100%;
+  /* auto, so the picture's own shape decides the height and there is nothing to fill */
+  height: auto;
+  /* contain, never cover: a cropped screenshot would misplace the pointer drawn
+     over it. */
+  object-fit: contain;
+  display: block;
+}
+
+.pane .ripple {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border: 2px solid var(--bad);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+.pane .ripple.go { animation: ripple .5s ease-out; }
+@keyframes ripple {
+  from { opacity: .85; transform: scale(1); }
+  to { opacity: 0; transform: scale(5); }
+}
+
+.pane .pointer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  /* The pointer moves on its own schedule - actions arrive in bursts between frames
+     - so it slides rather than teleports. */
+  transition: transform .18s ease-out;
+  will-change: transform;
+}
+.pane .pointer[hidden] { display: none; }
+.pane .pointer .dot {
+  position: absolute;
+  left: -12px;
+  top: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  /* A ring, a crosshair and a centre dot: at a panel's scale a plain dot is a smudge, and
+     the whole point of the pointer is answering "where exactly is it". */
+  border: 2px solid rgba(239, 68, 68, .95);
+  background-image:
+    linear-gradient(to right, transparent 47%, rgba(239, 68, 68, .8) 47%,
+                    rgba(239, 68, 68, .8) 53%, transparent 53%),
+    linear-gradient(to bottom, transparent 47%, rgba(239, 68, 68, .8) 47%,
+                    rgba(239, 68, 68, .8) 53%, transparent 53%),
+    radial-gradient(circle, rgba(239, 68, 68, .95) 0 3px, rgba(239, 68, 68, .16) 3px);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .9), 0 2px 10px rgba(0, 0, 0, .55);
+}
+
+.pane .meta {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 0 2px;
+  min-height: 16px;
+}
+.badge {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.pane .url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+  direction: rtl;
+  text-align: left;
+}
+
+.frame-note {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, .6);
+  color: var(--warn);
+  font-size: 10px;
+}
+
+#banners {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 9px;
+  background: rgba(30, 22, 22, .96);
+  border: 1px solid rgba(239, 68, 68, .45);
+  border-radius: 8px;
+  color: var(--fg);
+  -webkit-app-region: no-drag;
+}
+.banner.info { background: rgba(22, 26, 30, .96); border-color: var(--line); }
+.banner .text { flex: 1 1 auto; user-select: text; -webkit-user-select: text; }
+.banner .act {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+.banner button {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+/* Out of the way: the window is for the page. These are last in the file on purpose - the
+   meta row is laid out further up with the same specificity, and an earlier rule loses. */
+#brand,
+#status,
+.pane .meta { display: none; }

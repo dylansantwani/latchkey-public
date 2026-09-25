@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "latchkey"
+version = "1.3.0"
+description = "Headless Chrome that is already logged in, as a library, a CLI and an MCP server for agents."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Dylan Santwani" }]
+license = { file = "LICENSE" }
+keywords = ["chrome", "playwright", "mcp", "agents", "cookies", "automation"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Environment :: Console",
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python :: 3",
+  "Topic :: Internet :: WWW/HTTP :: Browsers",
+]
+dependencies = [
+  "playwright>=1.40",
+  "cryptography>=41",
+]
+
+[project.scripts]
+latchkey = "latchkey.cli:main"
+
+[tool.setuptools]
+packages = ["latchkey"]
+
+[tool.setuptools.package-data]
+latchkey = ["viewer_page.html"]

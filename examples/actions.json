@@ -1,0 +1,30 @@
+/**
+ * Example action list for `python3 -m latchkey run <url> --actions examples/actions.json`
+ *
+ * Every verb the automation layer understands. Remove the ones you do not need.
+ */
+[
+  { "do": "click",      "selector": "a[href='/login']", "settle_ms": 2000 },
+  { "do": "hover",      "selector": "nav", "settle_ms": 300 },
+  { "do": "fill",       "selector": "input[name=email]", "value": "someone@example.com" },
+  { "do": "fill",       "selector": "input[name=password]", "value": "hunter2" },
+  { "do": "press",      "selector": "input[name=password]", "key": "Enter" },
+  { "do": "select",     "selector": "select#country", "value": "US" },
+  { "do": "check",      "selector": "input#remember", "state": true },
+  { "do": "scroll",     "pixels": 1200 },
+  { "do": "scroll",     "selector": "footer" },
+  { "do": "upload",     "selector": "input[type=file]", "path": "/tmp/file.pdf" },
+  { "do": "wait",       "ms": 1500 },
+  { "do": "wait_for",   "selector": ".dashboard", "timeout_ms": 15000 },
+  { "do": "eval",       "js": "() => window.scrollTo(0, 0)" },
+  { "do": "goto",      "url": "https://example.com/next" },
+  { "do": "back" },
+  { "do": "forward" },
+  { "do": "reload" },
+  { "do": "new_page",   "url": "https://example.com/other" },
+  { "do": "switch",     "index": 0 },
+  { "do": "close_page", "index": 1 },
+  { "do": "sync" },
+  { "do": "save_session", "site": "example.com" },
+  { "do": "screenshot", "path": "/tmp/after.png", "full_page": false }
+]
