@@ -25,6 +25,24 @@ jobs:
       - name: Install (library + dev deps, no browser download)
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
+          pip install -e . pytest
+      - name: Create disposable Chrome profile fixtures
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sqlite3
+
+          root = Path.home() / "Library/Application Support/Google/Chrome"
+          for name in ("Default", "Profile 2", "Profile 3"):
+              directory = root / name
+              directory.mkdir(parents=True, exist_ok=True)
+              with sqlite3.connect(directory / "Cookies") as connection:
+                  connection.execute(
+                      "CREATE TABLE cookies (host_key TEXT, name TEXT, encrypted_value BLOB, "
+                      "expires_utc INTEGER, is_secure INTEGER, is_httponly INTEGER, "
+                      "path TEXT, samesite INTEGER, has_expires INTEGER, "
+                      "is_persistent INTEGER, top_frame_site_key TEXT)"
+                  )
+          PY
       - name: Offline test suite
         run: python -m unittest discover -s tests -v
