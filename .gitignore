@@ -1,0 +1,40 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+viewer/node_modules/
+viewer/dist/
+viewer/out/
+menubar/build/
+menubar/.build/
+menubar/*.app/
+*.app/
+*.zip
+.DS_Store
+
+# Environment / secrets
+.env
+.env.*
+*.log
+
+# Runtime data (never commit a real profile or its cookies)
+.latchkey/
+*.sqlite
+*.sqlite3
+/credentials.json
+/sessions/
+/profile/
+/accounts/
+/clones/
+/owners/
+/viewers.json
+/hints.json
+
+# Local-only working notes (kept out of the public repo)
+HANDOFF.md
+COVERAGE.md
+TODO.md
